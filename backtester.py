@@ -16,7 +16,7 @@ def load_data(symbol="BTC-USD", start="2021-01-01"):
     return df
 
 
-def backtest(df, stop_loss=0.05):
+def backtest(df, stop_loss=0.04, fee=0.001):
     df = df.copy()
 
     # Shift signal to create position
@@ -46,7 +46,8 @@ def backtest(df, stop_loss=0.05):
             # Trailing stop
             if price <= highest_price * (1 - stop_loss):
                 exit_price = price
-                trade_return = (exit_price - entry_price) / entry_price
+                raw_return = (exit_price - entry_price) / entry_price
+                trade_return = raw_return - (2 * fee)
                 trades.append(trade_return)
 
                 df.loc[df.index[i], 'Position'] = 0
@@ -57,12 +58,16 @@ def backtest(df, stop_loss=0.05):
     # Close last open trade at final price
     if in_position and entry_price is not None:
         final_price = float(df['Close'].iloc[-1])
-        trade_return = (final_price - entry_price) / entry_price
+        raw_return = (final_price - entry_price) / entry_price
+        trade_return = raw_return - (2 * fee)
         trades.append(trade_return)
 
     # Strategy returns
     df['Strategy_Returns'] = df['Position'] * df['Close'].pct_change()
+    df['Trade_Change'] = df['Position'].diff().abs()
+    df['Strategy_Returns'] -= df['Trade_Change'] * fee
     df['Cumulative_Strategy'] = (1 + df['Strategy_Returns']).cumprod()
+    
 
     cumulative_returns = df['Cumulative_Strategy']
 
