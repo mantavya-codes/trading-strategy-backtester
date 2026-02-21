@@ -70,20 +70,26 @@ def backtest(df, stop_loss=0.04, fee=0.001):
     
 
     cumulative_returns = df['Cumulative_Strategy']
+   # Calculate number of years
+    total_days = len(df)
+    years = total_days / 252  # 252 trading days per year
 
+# Performance metrics
     total_return = cumulative_returns.iloc[-1] - 1
+    cagr = cumulative_returns.iloc[-1] ** (1 / years) - 1
+
     sharpe_ratio = np.sqrt(252) * (
-        df['Strategy_Returns'].mean() /
-        df['Strategy_Returns'].std()
-    )
+    df['Strategy_Returns'].mean() /
+    df['Strategy_Returns'].std()
+)
 
     drawdown = cumulative_returns / cumulative_returns.cummax() - 1
     max_drawdown = drawdown.min()
 
     print("Total Return: {:.2%}".format(total_return))
+    print("CAGR: {:.2%}".format(cagr))
     print("Sharpe Ratio: {:.2f}".format(sharpe_ratio))
     print("Max Drawdown: {:.2%}".format(max_drawdown))
-
     # Trade analytics
     if len(trades) > 0:
         trade_count = len(trades)
