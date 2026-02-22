@@ -90,6 +90,11 @@ def backtest(df, stop_loss=0.04, fee=0.001):
     print("CAGR: {:.2%}".format(cagr))
     print("Sharpe Ratio: {:.2f}".format(sharpe_ratio))
     print("Max Drawdown: {:.2%}".format(max_drawdown))
+
+    # Exposure %
+    exposure = df['Position'].mean()
+    print("Exposure: {:.2%}".format(exposure))
+
     # Trade analytics
     if len(trades) > 0:
         trade_count = len(trades)
