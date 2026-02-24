@@ -108,20 +108,51 @@ def backtest(df, stop_loss=0.04, fee=0.001):
     # Buy & Hold curve
     df['Buy_Hold'] = (1 + df['Close'].pct_change()).cumprod()
 
-    return df['Cumulative_Strategy'], df['Buy_Hold']
+    return {
+        "cagr": cagr,   
+        "max_dd": max_drawdown,
+        "sharpe": sharpe_ratio,
+        "exposure": exposure,
+        "total_return": total_return,
+    }
 
 
 if __name__ == "__main__":
-    data = load_data()
-    data = sma_strategy(data)
+    symbol = "BTC-USD"
+    stop_values = [0.03, 0.04, 0.05, 0.06, 0.07]
 
-    results, buy_hold = backtest(data)
+    results_table = []
 
-    print("Final Strategy Return:", results.iloc[-1])
+    for stop in stop_values:
+        print(f"\nTesting stop_loss = {stop}")
 
-    plt.figure(figsize=(10, 5))
-    plt.plot(results, label="Strategy")
-    plt.plot(buy_hold, label="Buy & Hold")
-    plt.legend()
-    plt.title("Strategy vs Buy & Hold")
-    plt.show()
+        data = load_data(symbol=symbol, start="2022-01-01")
+        data = sma_strategy(data)
+
+        metrics = backtest(data, stop_loss=stop)
+
+        score = metrics["cagr"] / abs(metrics["max_dd"])
+
+        results_table.append({
+            "stop": stop,
+            "cagr": metrics["cagr"],
+            "max_dd": metrics["max_dd"],
+            "score": score
+        })
+
+    print("\n=== Optimization Results ===")
+
+    for row in sorted(results_table, key=lambda x: x["score"], reverse=True):
+        print(
+            f"Stop: {row['stop']} | "
+            f"CAGR: {row['cagr']:.2%} | "
+            f"MaxDD: {row['max_dd']:.2%} | "
+            f"Score: {row['score']:.2f}"
+        )
+        
+    #plt.figure(figsize=(10, 5))
+    #plt.plot(results, label="Strategy")
+    #plt.plot(buy_hold, label="Buy & Hold")
+    #plt.legend()
+    #plt.title("Strategy vs Buy & Hold")
+    #plt.show()
