@@ -16,10 +16,9 @@ def load_data(symbol="BTC-USD", start="2021-01-01"):
     return df
 
 
-def backtest(df, stop_loss=0.04, fee=0.001):
+def backtest(df, stop_loss=0.03, fee=0.001, verbose=True):
     df = df.copy()
 
-    # Shift signal to create position
     df['Position'] = df['Signal'].shift(1).fillna(0)
 
     entry_price = None
@@ -30,20 +29,15 @@ def backtest(df, stop_loss=0.04, fee=0.001):
     for i in range(len(df)):
         price = float(df['Close'].iloc[i])
 
-        # Enter trade
         if df['Position'].iloc[i] == 1 and not in_position:
             entry_price = price
             highest_price = price
             in_position = True
 
-        # Manage open trade
         if in_position:
-
-            # Update highest price
             if price > highest_price:
                 highest_price = price
 
-            # Trailing stop
             if price <= highest_price * (1 - stop_loss):
                 exit_price = price
                 raw_return = (exit_price - entry_price) / entry_price
@@ -55,104 +49,96 @@ def backtest(df, stop_loss=0.04, fee=0.001):
                 entry_price = None
                 highest_price = None
 
-    # Close last open trade at final price
     if in_position and entry_price is not None:
         final_price = float(df['Close'].iloc[-1])
         raw_return = (final_price - entry_price) / entry_price
         trade_return = raw_return - (2 * fee)
         trades.append(trade_return)
 
-    # Strategy returns
     df['Strategy_Returns'] = df['Position'] * df['Close'].pct_change()
     df['Trade_Change'] = df['Position'].diff().abs()
     df['Strategy_Returns'] -= df['Trade_Change'] * fee
     df['Cumulative_Strategy'] = (1 + df['Strategy_Returns']).cumprod()
-    
 
     cumulative_returns = df['Cumulative_Strategy']
-   # Calculate number of years
-    total_days = len(df)
-    years = total_days / 252  # 252 trading days per year
 
-# Performance metrics
+    total_days = len(df)
+    years = total_days / 252
+
     total_return = cumulative_returns.iloc[-1] - 1
     cagr = cumulative_returns.iloc[-1] ** (1 / years) - 1
 
     sharpe_ratio = np.sqrt(252) * (
-    df['Strategy_Returns'].mean() /
-    df['Strategy_Returns'].std()
-)
+        df['Strategy_Returns'].mean() /
+        df['Strategy_Returns'].std()
+    )
 
     drawdown = cumulative_returns / cumulative_returns.cummax() - 1
     max_drawdown = drawdown.min()
 
-    print("Total Return: {:.2%}".format(total_return))
-    print("CAGR: {:.2%}".format(cagr))
-    print("Sharpe Ratio: {:.2f}".format(sharpe_ratio))
-    print("Max Drawdown: {:.2%}".format(max_drawdown))
-
-    # Exposure %
     exposure = df['Position'].mean()
-    print("Exposure: {:.2%}".format(exposure))
 
-    # Trade analytics
-    if len(trades) > 0:
-        trade_count = len(trades)
-        win_rate = sum(1 for t in trades if t > 0) / trade_count
-        avg_trade_return = sum(trades) / trade_count
+    if verbose:
+        print("Total Return: {:.2%}".format(total_return))
+        print("CAGR: {:.2%}".format(cagr))
+        print("Sharpe Ratio: {:.2f}".format(sharpe_ratio))
+        print("Max Drawdown: {:.2%}".format(max_drawdown))
+        print("Exposure: {:.2%}".format(exposure))
 
-        print("Trade Count:", trade_count)
-        print("Win Rate: {:.2%}".format(win_rate))
-        print("Average Trade Return: {:.2%}".format(avg_trade_return))
+        if len(trades) > 0:
+            trade_count = len(trades)
+            win_rate = sum(1 for t in trades if t > 0) / trade_count
+            avg_trade_return = sum(trades) / trade_count
 
-    # Buy & Hold curve
-    df['Buy_Hold'] = (1 + df['Close'].pct_change()).cumprod()
+            print("Trade Count:", trade_count)
+            print("Win Rate: {:.2%}".format(win_rate))
+            print("Average Trade Return: {:.2%}".format(avg_trade_return))
 
     return {
-        "cagr": cagr,   
+        "cagr": cagr,
         "max_dd": max_drawdown,
         "sharpe": sharpe_ratio,
         "exposure": exposure,
         "total_return": total_return,
     }
-
-
 if __name__ == "__main__":
+    import seaborn as sns
+
     symbol = "BTC-USD"
-    stop_values = [0.03, 0.04, 0.05, 0.06, 0.07]
+    data = load_data(symbol=symbol, start="2022-01-01")
 
-    results_table = []
+    fast_range = range(10, 41, 5)   # 10,15,20,...40
+    slow_range = range(50, 151, 10) # 50,60,...150
 
-    for stop in stop_values:
-        print(f"\nTesting stop_loss = {stop}")
+    heatmap_data = []
 
-        data = load_data(symbol=symbol, start="2022-01-01")
-        data = sma_strategy(data)
+    for fast in fast_range:
+        row = []
+        for slow in slow_range:
+            if fast >= slow:
+                row.append(None)
+                continue
 
-        metrics = backtest(data, stop_loss=stop)
+            temp = sma_strategy(data.copy(), fast=fast, slow=slow)
+            metrics = backtest(temp, stop_loss=0.03, verbose=False)
 
-        score = metrics["cagr"] / abs(metrics["max_dd"])
+            score = metrics["cagr"] / abs(metrics["max_dd"])
+            row.append(score)
 
-        results_table.append({
-            "stop": stop,
-            "cagr": metrics["cagr"],
-            "max_dd": metrics["max_dd"],
-            "score": score
-        })
+        heatmap_data.append(row)
 
-    print("\n=== Optimization Results ===")
+    import numpy as np
+    heatmap_array = np.array(heatmap_data)
 
-    for row in sorted(results_table, key=lambda x: x["score"], reverse=True):
-        print(
-            f"Stop: {row['stop']} | "
-            f"CAGR: {row['cagr']:.2%} | "
-            f"MaxDD: {row['max_dd']:.2%} | "
-            f"Score: {row['score']:.2f}"
-        )
-        
-    #plt.figure(figsize=(10, 5))
-    #plt.plot(results, label="Strategy")
-    #plt.plot(buy_hold, label="Buy & Hold")
-    #plt.legend()
-    #plt.title("Strategy vs Buy & Hold")
-    #plt.show()
+    plt.figure(figsize=(12, 6))
+    sns.heatmap(
+        heatmap_array,
+        xticklabels=list(slow_range),
+        yticklabels=list(fast_range),
+        cmap="viridis"
+    )
+
+    plt.title("Return/Drawdown Heatmap")
+    plt.xlabel("Slow SMA")
+    plt.ylabel("Fast SMA")
+    plt.show()

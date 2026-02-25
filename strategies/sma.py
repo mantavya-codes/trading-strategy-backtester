@@ -1,10 +1,11 @@
 import numpy as np
 
-def sma_strategy(df, short_window=20, long_window=50):
-    df['SMA_short'] = df['Close'].rolling(window=short_window).mean()
-    df['SMA_long'] = df['Close'].rolling(window=long_window).mean()
+def sma_strategy(df, fast=20, slow=50):
+    df = df.copy()
 
-    df['Signal'] = np.where(df['SMA_short'] > df['SMA_long'], 1, 0)
-    df['Position'] = df['Signal'].diff()
+    df['SMA_Fast'] = df['Close'].rolling(fast).mean()
+    df['SMA_Slow'] = df['Close'].rolling(slow).mean()
+
+    df['Signal'] = np.where(df['SMA_Fast'] > df['SMA_Slow'], 1, 0)
 
     return df
