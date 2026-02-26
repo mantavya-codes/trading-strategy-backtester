@@ -130,6 +130,18 @@ if __name__ == "__main__":
     import numpy as np
     heatmap_array = np.array(heatmap_data)
 
+    results_df = pd.DataFrame(
+    heatmap_array,
+    index=list(fast_range),
+    columns=list(slow_range)
+    )
+
+    import os
+    os.makedirs("research", exist_ok=True)
+
+    results_df.to_csv("research/heatmap_results.csv")
+    print("Heatmap results saved to research/heatmap_results.csv")
+
     plt.figure(figsize=(12, 6))
     sns.heatmap(
         heatmap_array,
