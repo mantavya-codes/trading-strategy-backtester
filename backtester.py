@@ -107,6 +107,9 @@ if __name__ == "__main__":
     symbol = "BTC-USD"
     data = load_data(symbol=symbol, start="2022-01-01")
 
+    train_data = data.loc["2022-01-01":"2023-12-31"]
+    test_data = data.loc["2024-01-01":]
+
     fast_range = range(10, 41, 5)   # 10,15,20,...40
     slow_range = range(50, 151, 10) # 50,60,...150
 
@@ -119,16 +122,32 @@ if __name__ == "__main__":
                 row.append(None)
                 continue
 
-            temp = sma_strategy(data.copy(), fast=fast, slow=slow)
+            temp = sma_strategy(train_data.copy(), fast=fast, slow=slow)
             metrics = backtest(temp, stop_loss=0.03, verbose=False)
 
             score = metrics["cagr"] / abs(metrics["max_dd"])
             row.append(score)
 
         heatmap_data.append(row)
+        heatmap_array = np.array(heatmap_data)
 
-    import numpy as np
-    heatmap_array = np.array(heatmap_data)
+    best_idx = np.unravel_index(
+        np.nanargmax(heatmap_array),
+        heatmap_array.shape
+    )
+
+    best_fast = list(fast_range)[best_idx[0]]
+    best_slow = list(slow_range)[best_idx[1]]
+
+    print(f"\nBest parameters from TRAIN:")
+    print(f"Fast SMA: {best_fast}")
+    print(f"Slow SMA: {best_slow}")
+
+    print("\nRunning TEST evaluation...\n")
+
+    test_temp = sma_strategy(test_data.copy(), fast=best_fast, slow=best_slow)
+
+    test_metrics = backtest(test_temp, stop_loss=0.03, verbose=True)
 
     results_df = pd.DataFrame(
     heatmap_array,
